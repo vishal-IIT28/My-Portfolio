@@ -6,7 +6,7 @@ class PortfolioData {
   static const String subtitleLine2 = 'Full-Stack Dev  ·  Robotics';
   static const String college = 'IIT (ISM) Dhanbad';
   static const String gpa = 'GPA: 6.73';
-  static const String education = 'IIT (ISM) Dhanbad  ·  B.Tech ECE (2022–2026)';
+  static const String education = 'IIT (ISM) Dhanbad  ·  B.Tech ECE (2024–2028)';
   static const String about =
       'I\'m an Electronics & Communication Engineering undergraduate at IIT (ISM) Dhanbad '
       'with a deep passion for building things — be it real-time full-stack applications, '

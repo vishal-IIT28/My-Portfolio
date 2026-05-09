@@ -133,7 +133,7 @@ class _EduCardState extends State<_EduCard> {
         ),
         const SizedBox(height: 4),
         Text(
-          '2022 – 2026',
+          '2024 – 2028',
           style: AppConstants.labelStyle.copyWith(
             color: AppConstants.gold.withAlpha(160),
             fontSize: 11,

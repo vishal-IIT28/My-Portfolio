@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:portfolio_website/constants/app_constants.dart';
 import 'package:portfolio_website/constants/portfolio_data.dart';
+import 'package:portfolio_website/services/database_service.dart';
 import 'package:portfolio_website/widgets/cyber_background.dart';
 import 'package:portfolio_website/widgets/hero_section.dart';
 import 'package:portfolio_website/widgets/projects_section.dart';
@@ -10,7 +12,48 @@ import 'package:portfolio_website/widgets/robotics_showcase_section.dart';
 import 'package:portfolio_website/widgets/experience_education_section.dart';
 import 'package:portfolio_website/widgets/footer_section.dart';
 
-void main() {
+/// Initialize Supabase with environment variables from .env file
+Future<void> _initializeServices() async {
+  try {
+    // Try to load environment variables from .env file
+    // On Flutter Web, this may fail if .env is not available
+    await dotenv.load();
+  } catch (e) {
+    // Gracefully handle missing .env file on Flutter Web
+    debugPrint('⚠️  Could not load .env file: $e');
+    debugPrint('This is normal in development/web. Using fallback mode.');
+  }
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    debugPrint('⚠️  WARNING: Supabase credentials not found in environment');
+    debugPrint('Development Mode: Static portfolio data will be used.');
+    debugPrint('For full functionality, add .env file with:');
+    debugPrint('  SUPABASE_URL=https://your-project.supabase.co');
+    debugPrint('  SUPABASE_ANON_KEY=your-anon-key');
+    return;
+  }
+
+  try {
+    await SupabaseService().initialize(
+      supabaseUrl: supabaseUrl,
+      supabaseAnonKey: supabaseAnonKey,
+    );
+    debugPrint('✅ Supabase initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Failed to initialize Supabase: $e');
+    debugPrint('Falling back to static portfolio data.');
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Supabase before running the app
+  await _initializeServices();
+  
   runApp(const MyApp());
 }
 

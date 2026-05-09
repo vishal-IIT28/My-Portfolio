@@ -1,7 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:portfolio_website/constants/app_constants.dart';
-import 'package:portfolio_website/constants/portfolio_data.dart';
 
 /// Full-width "widescreen" section inspired by Simon Sparks' project showcase panels.
 /// Features a high-contrast dark panel with gold-accented CTA for Robotics wins.

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:portfolio_website/constants/app_constants.dart';
 import 'package:portfolio_website/constants/portfolio_data.dart';
-import 'package:portfolio_website/widgets/robotics_showcase_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FooterSection extends StatefulWidget {
@@ -121,7 +120,7 @@ class _FooterSectionState extends State<FooterSection> {
 
   Widget _copyright() {
     return Text(
-      '© 2025 Vishal Kumar. All rights reserved.',
+      '© 2026 Vishal Kumar. All rights reserved.',
       style: AppConstants.bodyStyle.copyWith(
         fontSize: 12,
         color: AppConstants.textMuted,

@@ -1,9 +1,106 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:portfolio_website/constants/app_constants.dart';
 import 'package:portfolio_website/constants/portfolio_data.dart';
-import 'package:portfolio_website/models/portfolio_models.dart';
+import 'package:portfolio_website/models/dynamic_project.dart';
+import 'package:portfolio_website/services/database_service.dart';
+import 'package:portfolio_website/widgets/dynamic_project_card.dart';
 
+// ─── Static fallback data (shown when Supabase is offline / no credentials) ──
+List<DynamicProject> _staticFallbackProjects() {
+  return PortfolioData.projects.asMap().entries.map((entry) {
+    final i = entry.key;
+    final p = entry.value;
+    return DynamicProject(
+      id: 'static_$i',
+      title: p.title,
+      subtitle: p.subtitle,
+      description: p.description,
+      objective: _objectiveFor(p.title),
+      outcome: _outcomeFor(p.title),
+      techStack: List<String>.from(p.technologies),
+      imageUrl: '',
+      pdfUrl: p.title.contains('EQ') ? 'placeholder' : null,
+      githubUrl: PortfolioData.githubUrl,
+      category: p.category.name,
+      achievement: p.achievement,
+      createdAt: DateTime.now(),
+      codeSnippet: _snippetFor(p.title),
+      codeLanguage: _langFor(p.title),
+    );
+  }).toList();
+}
+
+String _objectiveFor(String title) {
+  switch (title) {
+    case 'JellyChat':
+      return 'Build a production-grade real-time messaging platform that replaces '
+          'sterile chat UIs with multi-persona emotional AI—enabling users to hold '
+          'natural, context-aware conversations with distinct AI personalities.';
+    case '3-Band Audio EQ':
+      return 'Design and fabricate a hardware 3-band audio equalizer using OPAMP '
+          'active filters, demonstrating mastery of analog signal processing for '
+          'professional-grade audio manipulation.';
+    case 'Verilog HDL Designs':
+      return 'Implement and verify a suite of digital circuits—from combinational '
+          'ALUs to pipelined processors—entirely in Verilog HDL, targeting real FPGA '
+          'synthesis and timing closure.';
+    case 'RC Defensive Bot':
+      return 'Engineer a combat-ready remote-controlled robot optimized for defensive '
+          'strategy at Roborumble\'24, minimizing mechanical failure under sustained '
+          'impact while maximizing opponent contact area.';
+    case 'Manual Armed Rover':
+      return 'Build a manually controlled armed rover capable of precision weapon '
+          'deployment for Concetto\'24, featuring servo-driven actuators and a robust '
+          'drive train under competition constraints.';
+    default:
+      return '';
+  }
+}
+
+String _outcomeFor(String title) {
+  switch (title) {
+    case 'JellyChat':
+      return '🚀 Deployed full-stack messaging platform with <100 ms real-time latency. '
+          'Supports 6 AI personas, multilingual input, persistent chat history, '
+          'Google OAuth, and an animated GIF picker.';
+    case '3-Band Audio EQ':
+      return '🎵 Successfully fabricated and verified PCB. Bass/mid/treble bands '
+          'achieved flat passband response within ±1.5 dB. Presented circuit '
+          'diagrams as part of ECE lab coursework at IIT (ISM) Dhanbad.';
+    case 'Verilog HDL Designs':
+      return '✅ All designs synthesized on Xilinx FPGA with zero critical warnings. '
+          'Pipelined processor achieved 4-stage execution with correct hazard '
+          'forwarding, verified on ModelSim testbenches.';
+    case 'RC Defensive Bot':
+      return '🥈 Secured 2nd Place at Roborumble\'24. Chassis withstood 15+ direct '
+          'hits without structural failure. Layered armor design eliminated opponent '
+          'flipper access to undercarriage.';
+    case 'Manual Armed Rover':
+      return '🥉 Won 3rd Place at Concetto\'24. Servo weapon system delivered precise '
+          'targeting. Drive train maintained full mobility throughout all match rounds.';
+    default:
+      return '';
+  }
+}
+
+String? _snippetFor(String title) {
+  if (title == 'JellyChat') {
+    return "// Real-time message stream\nsupabase.from('messages')\n  .stream(primaryKey: ['id'])\n  .listen((data) => _updateUI(data));";
+  }
+  if (title == 'Verilog HDL Designs') {
+    return "// 4-stage pipelined ALU\nalways @(posedge clk) begin\n  EX_MEM <= {alu_result, rd};\nend";
+  }
+  return null;
+}
+
+String? _langFor(String title) {
+  if (title == 'JellyChat') return 'Dart';
+  if (title == 'Verilog HDL Designs') return 'Verilog';
+  return null;
+}
+
+// ─── Projects Section ────────────────────────────────────────────────────────
 class ProjectsSection extends StatefulWidget {
   const ProjectsSection({super.key});
 
@@ -12,17 +109,33 @@ class ProjectsSection extends StatefulWidget {
 }
 
 class _ProjectsSectionState extends State<ProjectsSection> {
-  ProjectCategory _selectedCategory = ProjectCategory.all;
+  late Future<List<DynamicProject>> _projectsFuture;
+  String _selectedCategory = 'all';
 
-  List<Project> get _filteredProjects {
-    if (_selectedCategory == ProjectCategory.all) return PortfolioData.projects;
-    return PortfolioData.projects.where((p) => p.category == _selectedCategory).toList();
+  @override
+  void initState() {
+    super.initState();
+    _projectsFuture = _loadProjects();
+  }
+
+  Future<List<DynamicProject>> _loadProjects() async {
+    final service = SupabaseService();
+    if (service.isInitialized) {
+      final dynamic_ = await service.fetchDynamicProjects();
+      if (dynamic_.isNotEmpty) return dynamic_;
+    }
+    // Graceful fallback to static portfolio data
+    return _staticFallbackProjects();
+  }
+
+  List<DynamicProject> _filtered(List<DynamicProject> all) {
+    if (_selectedCategory == 'all') return all;
+    return all.where((p) => p.category == _selectedCategory).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 700;
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -32,51 +145,55 @@ class _ProjectsSectionState extends State<ProjectsSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section header
+          // ── Section Header ──────────────────────────────────
           _SectionHeader(label: 'FEATURED WORK', title: 'Projects'),
           const SizedBox(height: 40),
-
-          // Gold divider
           const _GoldDivider(),
           const SizedBox(height: 40),
 
-          // Filter pills
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: ProjectCategory.values.map((cat) {
-              final isActive = _selectedCategory == cat;
-              return _FilterPill(
-                label: cat.name.toUpperCase(),
-                isActive: isActive,
-                onTap: () => setState(() => _selectedCategory = cat),
-              );
-            }).toList(),
+          // ── Filter Tabs ─────────────────────────────────────
+          _CategoryTabs(
+            selected: _selectedCategory,
+            onSelect: (cat) => setState(() => _selectedCategory = cat),
           ),
+          const SizedBox(height: 60),
 
-          const SizedBox(height: 50),
+          // ── Dynamic Content ─────────────────────────────────
+          FutureBuilder<List<DynamicProject>>(
+            future: _projectsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _ShimmerLoader(isMobile: isMobile);
+              }
 
-          // Project grid — vertically elongated cards
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth > 900 ? 2 : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 24,
-                  mainAxisSpacing: 24,
-                  // Vertically elongated — taller cards like Simon Sparks
-                  childAspectRatio: columns == 1 ? 1.3 : 0.85,
+              if (snapshot.hasError) {
+                return _ErrorState(
+                  onRetry: () => setState(() {
+                    _projectsFuture = _loadProjects();
+                  }),
+                );
+              }
+
+              final projects = _filtered(snapshot.data ?? []);
+
+              if (projects.isEmpty) {
+                return _EmptyState(category: _selectedCategory);
+              }
+
+              // Jensen Omega alternating layout
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                child: Column(
+                  key: ValueKey(_selectedCategory),
+                  children: projects.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final project = entry.value;
+                    return DynamicProjectCard(
+                      project: project,
+                      imageLeft: index.isEven, // ← alternating layout
+                    );
+                  }).toList(),
                 ),
-                itemCount: _filteredProjects.length,
-                itemBuilder: (context, index) {
-                  return _ProjectCard(
-                    project: _filteredProjects[index],
-                    index: index,
-                  );
-                },
               );
             },
           ),
@@ -86,239 +203,216 @@ class _ProjectsSectionState extends State<ProjectsSection> {
   }
 }
 
-// ─── Project Card ─────────────────────────────────────────────
-class _ProjectCard extends StatefulWidget {
-  final Project project;
-  final int index;
-  const _ProjectCard({required this.project, required this.index});
+// ─── Category Tabs ────────────────────────────────────────────────────────────
+class _CategoryTabs extends StatelessWidget {
+  final String selected;
+  final ValueChanged<String> onSelect;
 
-  @override
-  State<_ProjectCard> createState() => _ProjectCardState();
-}
+  const _CategoryTabs({required this.selected, required this.onSelect});
 
-class _ProjectCardState extends State<_ProjectCard>
-    with SingleTickerProviderStateMixin {
-  bool _hovered = false;
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    );
-    _scale = Tween<double>(begin: 1.0, end: 1.03).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Color get _categoryColor {
-    switch (widget.project.category) {
-      case ProjectCategory.software:
-        return AppConstants.coral;
-      case ProjectCategory.electronics:
-        return const Color(0xFF7B61FF);
-      case ProjectCategory.robotics:
-        return AppConstants.gold;
-      default:
-        return AppConstants.textSecondary;
-    }
-  }
+  static const _categories = [
+    ('all', 'ALL'),
+    ('software', 'SOFTWARE'),
+    ('electronics', 'ELECTRONICS'),
+    ('robotics', 'ROBOTICS'),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() => _hovered = true);
-        _ctrl.forward();
-      },
-      onExit: (_) {
-        setState(() => _hovered = false);
-        _ctrl.reverse();
-      },
-      child: AnimatedBuilder(
-        animation: _scale,
-        builder: (context, child) => Transform.scale(
-          scale: _scale.value,
-          child: child,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _hovered
-                  ? AppConstants.gold.withAlpha(200)
-                  : AppConstants.glassBorder,
-              width: 1.5,
-            ),
-            boxShadow: _hovered
-                ? [
-                    BoxShadow(
-                      color: AppConstants.gold.withAlpha(60),
-                      blurRadius: 30,
-                      spreadRadius: 4,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(80),
-                      blurRadius: 12,
-                    ),
-                  ],
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: _categories.map((cat) {
+        final isActive = selected == cat.$1;
+        return _FilterPill(
+          label: cat.$2,
+          isActive: isActive,
+          onTap: () => onSelect(cat.$1),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Shimmer Skeleton Loading ─────────────────────────────────────────────────
+class _ShimmerLoader extends StatelessWidget {
+  final bool isMobile;
+  const _ShimmerLoader({required this.isMobile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(3, (index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 60),
+          child: Shimmer.fromColors(
+            baseColor: AppConstants.bgCard,
+            highlightColor: AppConstants.navyLight,
+            period: const Duration(milliseconds: 1400),
+            child: isMobile
+                ? _mobileShimmerItem()
+                : _desktopShimmerItem(index),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Card gradient background derived from project
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(widget.project.gradientStart),
-                        Color(widget.project.gradientEnd),
-                        AppConstants.bgCard,
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                ),
+        );
+      }),
+    );
+  }
 
-                // Hover overlay shimmer
-                if (_hovered)
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.topRight,
-                        radius: 1.2,
-                        colors: [
-                          AppConstants.gold.withAlpha(20),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
+  Widget _desktopShimmerItem(int index) {
+    final leftFirst = index.isEven;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: leftFirst
+          ? [
+              _shimmerBox(flex: 45, height: 380),
+              const SizedBox(width: 60),
+              _shimmerContent(flex: 55),
+            ]
+          : [
+              _shimmerContent(flex: 55),
+              const SizedBox(width: 60),
+              _shimmerBox(flex: 45, height: 380),
+            ],
+    );
+  }
 
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Category tag
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _categoryColor.withAlpha(30),
-                          border: Border.all(color: _categoryColor.withAlpha(120), width: 1),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: Text(
-                          widget.project.category.name.toUpperCase(),
-                          style: AppConstants.labelStyle.copyWith(
-                            color: _categoryColor,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
+  Widget _mobileShimmerItem() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _shimmerRect(width: double.infinity, height: 200),
+        const SizedBox(height: 24),
+        _shimmerRect(width: double.infinity, height: 16),
+        const SizedBox(height: 8),
+        _shimmerRect(width: 200, height: 12),
+        const SizedBox(height: 16),
+        _shimmerRect(width: double.infinity, height: 80),
+      ],
+    );
+  }
 
-                      const SizedBox(height: 20),
+  Widget _shimmerBox({required int flex, required double height}) {
+    return Expanded(
+      flex: flex,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: AppConstants.bgCard,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
 
-                      // Title
-                      Text(
-                        widget.project.title,
-                        style: AppConstants.sectionHeadingStyle(22).copyWith(
-                          color: AppConstants.textPrimary,
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      // Subtitle
-                      Text(
-                        widget.project.subtitle,
-                        style: AppConstants.labelStyle.copyWith(
-                          color: AppConstants.gold.withAlpha(180),
-                          fontSize: 11,
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // Description
-                      Expanded(
-                        child: Text(
-                          widget.project.description,
-                          style: AppConstants.bodyStyle.copyWith(
-                            fontSize: 14,
-                            height: 1.7,
-                          ),
-                          overflow: TextOverflow.fade,
-                        ),
-                      ),
-
-                      // Achievement pill
-                      if (widget.project.achievement != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: AppConstants.goldButtonGradient,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            widget.project.achievement!,
-                            style: AppConstants.badgeStyle.copyWith(
-                              color: AppConstants.bgDeep,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 20),
-
-                      // Tech chips
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: widget.project.technologies.map((tech) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: AppConstants.bgDeep.withAlpha(160),
-                              border: Border.all(
-                                  color: AppConstants.glassBorder, width: 1),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              tech,
-                              style: AppConstants.badgeStyle.copyWith(
-                                fontSize: 11,
-                                color: AppConstants.textSecondary,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _shimmerContent({required int flex}) {
+    return Expanded(
+      flex: flex,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _shimmerRect(width: 280, height: 28),
+          const SizedBox(height: 12),
+          _shimmerRect(width: 160, height: 14),
+          const SizedBox(height: 20),
+          _shimmerRect(width: double.infinity, height: 12),
+          const SizedBox(height: 8),
+          _shimmerRect(width: double.infinity, height: 12),
+          const SizedBox(height: 8),
+          _shimmerRect(width: 280, height: 12),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(
+              4,
+              (_) => _shimmerRect(width: 70, height: 26),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shimmerRect({required double width, required double height}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppConstants.bgCard,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+// ─── Error State ──────────────────────────────────────────────────────────────
+class _ErrorState extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _ErrorState({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 48,
+              color: AppConstants.coral.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not reach Supabase',
+              style: AppConstants.sectionHeadingStyle(18).copyWith(
+                color: AppConstants.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Showing static fallback data. Check .env credentials.',
+              style: AppConstants.bodyStyle.copyWith(fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppConstants.gold),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'RETRY',
+                  style: AppConstants.labelStyle.copyWith(fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+class _EmptyState extends StatelessWidget {
+  final String category;
+  const _EmptyState({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Center(
+        child: Text(
+          'No $category projects yet.',
+          style: AppConstants.bodyStyle.copyWith(
+            color: AppConstants.textMuted,
+            fontSize: 14,
           ),
         ),
       ),
@@ -326,12 +420,13 @@ class _ProjectCardState extends State<_ProjectCard>
   }
 }
 
-// ─── Filter Pill ──────────────────────────────────────────────
+// ─── Filter Pill ──────────────────────────────────────────────────────────────
 class _FilterPill extends StatefulWidget {
   final String label;
   final bool isActive;
   final VoidCallback onTap;
-  const _FilterPill({required this.label, required this.isActive, required this.onTap});
+  const _FilterPill(
+      {required this.label, required this.isActive, required this.onTap});
 
   @override
   State<_FilterPill> createState() => _FilterPillState();
@@ -345,6 +440,7 @@ class _FilterPillState extends State<_FilterPill> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -377,7 +473,7 @@ class _FilterPillState extends State<_FilterPill> {
   }
 }
 
-// ─── Reusable section header ─────────────────────────────────
+// ─── Section Header ───────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String label;
   final String title;
@@ -401,7 +497,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ─── Gold horizontal divider ─────────────────────────────────
+// ─── Gold Divider ─────────────────────────────────────────────────────────────
 class _GoldDivider extends StatelessWidget {
   const _GoldDivider();
 
@@ -414,17 +510,14 @@ class _GoldDivider extends StatelessWidget {
         Container(
           width: 6,
           height: 6,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppConstants.gold,
             shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Container(
-            height: 1,
-            color: AppConstants.glassBorder,
-          ),
+          child: Container(height: 1, color: AppConstants.glassBorder),
         ),
       ],
     );
