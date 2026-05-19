@@ -275,4 +275,46 @@ class SupabaseService {
       throw Exception('Failed to upload file: $e');
     }
   }
+
+  // ============================================================================
+  // GENERIC CRUD OPERATIONS
+  // ============================================================================
+
+  Future<Map<String, dynamic>> createRecord(String table, Map<String, dynamic> data) async {
+    try {
+      if (!isAuthenticated) throw Exception('Must be authenticated');
+      final response = await _client.from(table).insert(data).select().single();
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      throw Exception('Failed to create record in $table: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateRecord(String table, String id, Map<String, dynamic> data) async {
+    try {
+      if (!isAuthenticated) throw Exception('Must be authenticated');
+      final response = await _client.from(table).update(data).eq('id', id).select().single();
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      throw Exception('Failed to update record in $table: $e');
+    }
+  }
+
+  Future<void> deleteRecord(String table, String id) async {
+    try {
+      if (!isAuthenticated) throw Exception('Must be authenticated');
+      await _client.from(table).delete().eq('id', id);
+    } catch (e) {
+      throw Exception('Failed to delete record in $table: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTable(String table, {String orderBy = 'created_at'}) async {
+    try {
+      final response = await _client.from(table).select().order(orderBy, ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to fetch $table: $e');
+    }
+  }
 }

@@ -11,6 +11,7 @@ import 'package:portfolio_website/widgets/skills_section.dart';
 import 'package:portfolio_website/widgets/robotics_showcase_section.dart';
 import 'package:portfolio_website/widgets/experience_education_section.dart';
 import 'package:portfolio_website/widgets/footer_section.dart';
+import 'package:portfolio_website/screens/admin/admin_gate.dart';
 
 /// Initialize Supabase with environment variables from .env file
 Future<void> _initializeServices() async {
@@ -65,7 +66,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Vishal Kumar — Portfolio',
       theme: AppConstants.darkTheme,
-      home: const PortfolioHomePage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const PortfolioHomePage(),
+        '/admin-vishal-28': (context) => const AdminGate(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
